@@ -45,10 +45,8 @@ jobs:
           ls -la dist
 
       - name: 部署到 Cloudflare Pages
-        env:
-          CF_PAGES_PROJECT: ${{ vars.CF_PAGES_PROJECT }}
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=${CF_PAGES_PROJECT:-proxy} --branch=main
+          command: pages deploy dist --project-name=proxy --branch=main
