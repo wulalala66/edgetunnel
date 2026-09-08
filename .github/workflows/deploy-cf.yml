@@ -1,0 +1,54 @@
+name: Deploy to Cloudflare Pages
+
+# 触发条件:
+#   1. push 到 main(手动 Sync fork / 自己改代码 push 后自动部署)
+#   2. 上游自动同步 workflow(Upstream Sync)成功完成后自动部署
+#   3. 手动触发(仓库 Actions 页面点 Run workflow)
+on:
+  push:
+    branches: [main]
+  workflow_run:
+    workflows: ["Upstream Sync"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cf-pages-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy _worker.js to Cloudflare Pages
+    runs-on: ubuntu-latest
+    # 若由 Upstream Sync 触发,只在它成功时才部署
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: 组装 Pages 部署目录(只含运行所需文件)
+        run: |
+          rm -rf dist
+          mkdir -p dist
+          cp _worker.js dist/
+          # 一并带上若存在的 Pages 辅助文件
+          for f in _headers _redirects _routes.json; do
+            if [ -f "$f" ]; then cp "$f" dist/; fi
+          done
+          echo "--- dist 内容 ---"
+          ls -la dist
+
+      - name: 部署到 Cloudflare Pages
+        env:
+          CF_PAGES_PROJECT: ${{ vars.CF_PAGES_PROJECT }}
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=${CF_PAGES_PROJECT:-proxy} --branch=main
