@@ -1,15 +1,19 @@
 name: Deploy to Cloudflare Pages
 
 # 触发条件:
-#   1. push 到 main(手动 Sync fork / 自己改代码 push 后自动部署)
-#   2. 上游自动同步 workflow(Upstream Sync)成功完成后自动部署
-#   3. 手动触发(仓库 Actions 页面点 Run workflow)
+#   1. push 到 main —— 上游有真更新被 sync 合并、或手动 Sync fork、或自己改代码 push 后自动部署
+#   2. 手动触发(仓库 Actions 页面点 Run workflow)
+# 说明:上游没有新提交时,sync 不会产生实际 push,因此不会触发本 workflow → 不会空跑重部署
 on:
   push:
     branches: [main]
-  workflow_run:
-    workflows: ["Upstream Sync"]
-    types: [completed]
+    # 仅运行相关文件变化才部署,避免 README/文档等无关改动触发
+    paths:
+      - "_worker.js"
+      - "_headers"
+      - "_redirects"
+      - "_routes.json"
+      - ".github/workflows/deploy-cf.yml"
   workflow_dispatch:
 
 permissions:
@@ -23,8 +27,6 @@ jobs:
   deploy:
     name: Deploy _worker.js to Cloudflare Pages
     runs-on: ubuntu-latest
-    # 若由 Upstream Sync 触发,只在它成功时才部署
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - name: Checkout latest main
